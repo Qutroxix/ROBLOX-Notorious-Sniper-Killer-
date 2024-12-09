@@ -1,0 +1,195 @@
+-- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local InsertService = game:GetService("InsertService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Player Setup
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local mouse = player:GetMouse()
+
+-- Load Sniper Model
+local sniperModel = InsertService:LoadAsset(5195386719):GetChildren()[1]
+local fireSound = Instance.new("Sound", workspace)
+fireSound.SoundId = "rbxassetid://136523485"
+
+-- Attach Sniper to Hands
+local rightArm = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+local leftArm = character:FindFirstChild("LeftHand") or character:FindFirstChild("Left Arm")
+if not rightArm or not leftArm then
+    warn("Arms not found!")
+    return
+end
+
+-- Attach Weapon to Character
+local handle = sniperModel:FindFirstChild("Handle")
+handle.CFrame = rightArm.CFrame
+sniperModel.Parent = character
+
+-- Motors for Arms and Sniper
+local rightMotor = Instance.new("Motor6D")
+rightMotor.Part0 = rightArm
+rightMotor.Part1 = handle
+rightMotor.C0 = CFrame.new(0, -1, 0)
+rightMotor.Parent = rightArm
+
+local leftMotor = Instance.new("Motor6D")
+leftMotor.Part0 = leftArm
+leftMotor.Part1 = handle
+leftMotor.C0 = CFrame.new(0, -1, -1)
+leftMotor.Parent = leftArm
+
+-- Create GUI
+local screenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+
+-- Objective Frame
+local objectiveFrame = Instance.new("Frame", screenGui)
+objectiveFrame.Size = UDim2.new(0.3, 0, 0.15, 0)
+objectiveFrame.Position = UDim2.new(0.05, 0, 0.85, 0)
+objectiveFrame.BackgroundTransparency = 0.5
+objectiveFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+
+local objectiveLabel = Instance.new("TextLabel", objectiveFrame)
+objectiveLabel.Size = UDim2.new(1, 0, 1, 0)
+objectiveLabel.Text = "Objective: Eliminate All Targets"
+objectiveLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+objectiveLabel.BackgroundTransparency = 1
+objectiveLabel.Font = Enum.Font.SourceSansBold
+objectiveLabel.TextSize = 24
+
+-- Targets List Frame
+local targetListFrame = Instance.new("Frame", screenGui)
+targetListFrame.Size = UDim2.new(0.3, 0, 0.4, 0)
+targetListFrame.Position = UDim2.new(0.65, 0, 0.55, 0)
+targetListFrame.BackgroundTransparency = 0.5
+targetListFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+
+local targetLabel = Instance.new("TextLabel", targetListFrame)
+targetLabel.Size = UDim2.new(1, 0, 0.15, 0)
+targetLabel.Text = "Targets:"
+targetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+targetLabel.BackgroundTransparency = 1
+targetLabel.Font = Enum.Font.SourceSansBold
+targetLabel.TextSize = 24
+
+-- Update Targets List
+local function updateTargets()
+    targetLabel.Text = "Targets:\n"
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            targetLabel.Text = targetLabel.Text .. p.Name .. "\n"
+        end
+    end
+end
+
+-- Blood Effect on Hit
+local function createBlood(position)
+    local blood = Instance.new("Part")
+    blood.Size = Vector3.new(2, 0.1, 2)
+    blood.Position = position + Vector3.new(0, 0.1, 0)
+    blood.BrickColor = BrickColor.new("Really red")
+    blood.Anchored = true
+    blood.Material = Enum.Material.Fabric
+    blood.Parent = workspace
+
+    task.delay(15, function()
+        blood:Destroy()
+    end)
+end
+
+-- Shooting Function
+local function shoot(target)
+    local bullet = Instance.new("Part")
+    bullet.Size = Vector3.new(0.2, 0.2, 4)
+    bullet.BrickColor = BrickColor.new("New Yeller")
+    bullet.Anchored = false
+    bullet.CanCollide = false
+    bullet.CFrame = handle.CFrame
+    bullet.Parent = workspace
+
+    -- Bullet Tween
+    local bulletTween = TweenService:Create(
+        bullet,
+        TweenInfo.new(0.5, Enum.EasingStyle.Linear),
+        {CFrame = CFrame.new(target.Position)}
+    )
+    bulletTween:Play()
+
+    bulletTween.Completed:Connect(function()
+        bullet:Destroy()
+        fireSound:Play()
+
+        if target.Parent:FindFirstChild("Humanoid") then
+            target.Parent.Humanoid:TakeDamage(100)
+            target.Parent:BreakJoints()
+            createBlood(target.Position)
+        end
+    end)
+end
+
+-- Keybinds and Control Functions
+UIS.InputBegan:Connect(function(input, processed)
+    if processed then return end
+
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local target = mouse.Target
+        if target and target.Parent:FindFirstChild("Humanoid") then
+            shoot(target)
+        end
+    elseif input.KeyCode == Enum.KeyCode.R then
+        -- Reload Animation
+        local reloadTween = TweenService:Create(
+            leftMotor,
+            TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+            {C0 = CFrame.new(0, -1, -1) * CFrame.Angles(math.rad(-70), 0, 0)}
+        )
+        reloadTween:Play()
+
+        -- Reload Arm Animation
+        local reloadArm = rightArm:FindFirstChild("Motor6D")
+        if reloadArm then
+            reloadArm.C0 = CFrame.new(0, -1, -1) * CFrame.Angles(math.rad(10), 0, 0)
+        end
+    elseif input.KeyCode == Enum.KeyCode.LeftControl then
+        humanoid.WalkSpeed = 8 -- Crouch
+    elseif input.KeyCode == Enum.KeyCode.C then
+        humanoid.WalkSpeed = 4 -- Crawl
+    end
+end)
+
+-- Update Targets Regularly
+RunService.RenderStepped:Connect(updateTargets)
+
+-- Smooth Aim with Tweens
+local function aimAt(targetPosition)
+    local aimTween = TweenService:Create(
+        rightMotor,
+        TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+        {C0 = CFrame.new(0, -1, 0) * CFrame.Angles(math.rad(10), math.rad(10), 0)}
+    )
+    aimTween:Play()
+end
+
+-- Wait for Full Load
+task.wait(6)
+print("Sniper Ready!")
+
+-- Handle Server Join Event for Target and Objective Updates
+Players.PlayerAdded:Connect(function(newPlayer)
+    updateTargets()
+end)
+
+Players.PlayerRemoving:Connect(function(removedPlayer)
+    updateTargets()
+end)
+
+-- Reset the GUI and Gameplay Elements on New Server Join
+game.Players.PlayerAdded:Connect(function()
+    -- Reset the GUI and update the targets when a new server is joined
+    objectiveLabel.Text = "Objective: Eliminate All Targets"
+    updateTargets()  -- Refresh target list when joining a new server
+end)
